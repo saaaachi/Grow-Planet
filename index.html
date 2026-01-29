@@ -43,15 +43,15 @@
         <canvas id="game-canvas"></canvas>
         <div id="ui-layer">
             <div id="score-display" class="ui-box">SCORE: 0</div>
-            <div id="hp-display" class="ui-box">HP: 100%</div>
+            <div id="hp-display" class="ui-box">HP: 100 / 100</div>
         </div>
 
         <div id="menuScreen">
             <h2 id="result-msg">Grow Planet</h2>
             <p class="guide-text">
-                ドラッグ（スワイプ）で移動！<br>
-                移動せずに画面をタップすると巨大化！<br>
-                <b>大きくなるほどHPが増える</b>が隕石にも当たりやすい！
+                <b>ドラッグ</b>で移動！隕石を避けろ！<br>
+                <b>長押し（同じ場所を押し続ける）</b>で巨大化！<br>
+                巨大化すると<b>スコアと最大HP</b>が増えるぞ！
             </p>
             
             <div id="ad-middle-container">
@@ -73,7 +73,8 @@
         let gameActive = false, score = 0, hp = 100, maxHp = 100;
         let planet = { x: 0, y: 0, r: 25, color: '#4fc3f7' };
         let asteroids = [], animationId;
-        let isDragging = false;
+        let isTouching = false;
+        let lastTouchX = 0, lastTouchY = 0;
 
         function resize() {
             canvas.width = canvas.offsetWidth;
@@ -87,71 +88,71 @@
             gameActive = true; score = 0; hp = 100; maxHp = 100;
             planet = { x: canvas.width/2, y: canvas.height/2, r: 25, color: '#4fc3f7' };
             asteroids = [];
+            updateUI();
             loop();
         }
 
-        // 移動と巨大化の切り替え
-        canvas.addEventListener('touchstart', (e) => { isDragging = true; handleMove(e); }, {passive: false});
-        canvas.addEventListener('touchmove', (e) => { handleMove(e); }, {passive: false});
-        canvas.addEventListener('touchend', () => { isDragging = false; });
-        
-        // タップ（移動していない時）は巨大化
-        canvas.addEventListener('pointerdown', (e) => {
-            if(!gameActive) return;
-            const grow = setInterval(() => {
-                if(!isDragging && gameActive) {
-                    planet.r += 0.5;
-                    maxHp = 100 + (planet.r - 25) * 2; // サイズに応じて最大HP増加
-                    hp = Math.min(hp + 0.5, maxHp); // 徐々に回復
-                    score = Math.floor(planet.r - 25);
-                    updateUI();
-                } else {
-                    clearInterval(grow);
-                }
-            }, 20);
-            canvas.addEventListener('pointerup', () => clearInterval(grow), {once:true});
-        });
+        // タッチイベントの統合
+        canvas.addEventListener('touchstart', (e) => {
+            isTouching = true;
+            updateTouchPos(e);
+        }, {passive: false});
 
-        function handleMove(e) {
-            if(!gameActive) return;
+        canvas.addEventListener('touchmove', (e) => {
+            updateTouchPos(e);
+            // 指を動かしたら移動
+            planet.x = lastTouchX;
+            planet.y = lastTouchY;
+        }, {passive: false});
+
+        canvas.addEventListener('touchend', () => isTouching = false);
+
+        function updateTouchPos(e) {
             const rect = canvas.getBoundingClientRect();
-            const touch = e.touches ? e.touches[0] : e;
-            planet.x = touch.clientX - rect.left;
-            planet.y = touch.clientY - rect.top;
+            const touch = e.touches[0];
+            lastTouchX = touch.clientX - rect.left;
+            lastTouchY = touch.clientY - rect.top;
         }
 
         function updateUI() {
             document.getElementById("score-display").innerText = "SCORE: " + score;
-            const hpPercent = Math.max(0, Math.floor((hp / maxHp) * 100));
-            document.getElementById("hp-display").innerText = "HP: " + hpPercent + "%";
+            document.getElementById("hp-display").innerText = `HP: ${Math.floor(hp)} / ${Math.floor(maxHp)}`;
         }
 
         function loop() {
             if(!gameActive) return;
             ctx.clearRect(0,0,canvas.width, canvas.height);
 
+            // 巨大化処理：指が触れていて、移動が少ない時に実行
+            if(isTouching) {
+                planet.r += 0.2; // 巨大化
+                maxHp = 100 + (planet.r - 25) * 5; // 最大HP増加
+                hp = Math.min(hp + 0.4, maxHp); // 回復
+                score = Math.floor((planet.r - 25) * 2);
+                updateUI();
+            }
+
             // 惑星描画
             ctx.beginPath();
             ctx.arc(planet.x, planet.y, planet.r, 0, Math.PI*2);
             ctx.fillStyle = planet.color;
-            ctx.shadowBlur = planet.r/2;
+            ctx.shadowBlur = planet.r / 2;
             ctx.shadowColor = planet.color;
             ctx.fill();
             ctx.shadowBlur = 0;
 
             // 隕石生成
-            if(Math.random() < 0.03 + (score/1000)) {
-                const r = 5 + Math.random()*10;
+            if(Math.random() < 0.03 + (score/2000)) {
+                const r = 8 + Math.random()*12;
                 let x, y;
-                if(Math.random() < 0.5) {
-                    x = Math.random() < 0.5 ? -r : canvas.width+r;
-                    y = Math.random() * canvas.height;
-                } else {
-                    x = Math.random() * canvas.width;
-                    y = Math.random() < 0.5 ? -r : canvas.height+r;
-                }
+                const side = Math.floor(Math.random()*4);
+                if(side === 0) { x = Math.random()*canvas.width; y = -r; }
+                else if(side === 1) { x = canvas.width+r; y = Math.random()*canvas.height; }
+                else if(side === 2) { x = Math.random()*canvas.width; y = canvas.height+r; }
+                else { x = -r; y = Math.random()*canvas.height; }
+                
                 const angle = Math.atan2(planet.y - y, planet.x - x);
-                asteroids.push({x, y, r, vx: Math.cos(angle)*2, vy: Math.sin(angle)*2});
+                asteroids.push({x, y, r, vx: Math.cos(angle)*2.5, vy: Math.sin(angle)*2.5});
             }
 
             // 隕石更新
@@ -164,7 +165,7 @@
 
                 const dist = Math.hypot(planet.x - a.x, planet.y - a.y);
                 if(dist < planet.r + a.r) {
-                    hp -= 20; // 当たると20ダメージ
+                    hp -= 25; // ダメージ
                     updateUI();
                     if(hp <= 0) gameOver();
                     return false;
