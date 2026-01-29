@@ -67,125 +67,108 @@
 
     <div id="ad-bottom"><iframe src="ad.html"></iframe></div>
 
-    <script>
-        const canvas = document.getElementById('game-canvas');
-        const ctx = canvas.getContext('2d');
-        let gameActive = false, score = 0, hp = 100, maxHp = 100;
-        let planet = { x: 0, y: 0, r: 25, color: '#4fc3f7' };
-        let asteroids = [], animationId;
-        let isTouching = false;
-        let lastTouchX = 0, lastTouchY = 0;
+<script>
+    const canvas = document.getElementById('game-canvas');
+    const ctx = canvas.getContext('2d');
+    let gameActive = false, score = 0, hp = 100, maxHp = 100;
+    let planet = { x: 0, y: 0, r: 25, color: '#4fc3f7' };
+    let asteroids = [], animationId;
+    let isTouching = false;
+    let isMoving = false; // 動いているかどうかのフラグを追加
+    let lastTouchX = 0, lastTouchY = 0;
 
-        function resize() {
-            canvas.width = canvas.offsetWidth;
-            canvas.height = canvas.offsetHeight;
-            if(!gameActive) { planet.x = canvas.width/2; planet.y = canvas.height/2; }
-        }
+    function startNewGame() {
+        document.getElementById("menuScreen").style.display = "none";
+        document.getElementById("ad-middle-container").style.display = "none";
+        gameActive = true; score = 0; hp = 100; maxHp = 100;
+        planet = { x: canvas.width/2, y: canvas.height/2, r: 25, color: '#4fc3f7' };
+        asteroids = [];
+        updateUI();
+        loop();
+    }
 
-        function startNewGame() {
-            document.getElementById("menuScreen").style.display = "none";
-            document.getElementById("ad-middle-container").style.display = "none";
-            gameActive = true; score = 0; hp = 100; maxHp = 100;
-            planet = { x: canvas.width/2, y: canvas.height/2, r: 25, color: '#4fc3f7' };
-            asteroids = [];
+    canvas.addEventListener('touchstart', (e) => {
+        isTouching = true;
+        isMoving = false; // 触れた瞬間はまだ動いていない
+        updateTouchPos(e);
+    }, {passive: false});
+
+    canvas.addEventListener('touchmove', (e) => {
+        isMoving = true; // 動かしたら移動中とみなす
+        updateTouchPos(e);
+        planet.x = lastTouchX;
+        planet.y = lastTouchY;
+    }, {passive: false});
+
+    canvas.addEventListener('touchend', () => {
+        isTouching = false;
+        isMoving = false;
+    });
+
+    function updateTouchPos(e) {
+        const rect = canvas.getBoundingClientRect();
+        const touch = e.touches[0];
+        lastTouchX = touch.clientX - rect.left;
+        lastTouchY = touch.clientY - rect.top;
+    }
+
+    function loop() {
+        if(!gameActive) return;
+        ctx.clearRect(0,0,canvas.width, canvas.height);
+
+        // ★ ここが調整ポイント：触れている 且つ 動いていない時だけ巨大化
+        if(isTouching && !isMoving) {
+            planet.r += 0.05; // 巨大化スピードをかなり落としました
+            maxHp = 100 + (planet.r - 25) * 4;
+            hp = Math.min(hp + 0.2, maxHp); // 回復もゆっくりに
+            score = Math.floor((planet.r - 25) * 5);
             updateUI();
-            loop();
         }
 
-        // タッチイベントの統合
-        canvas.addEventListener('touchstart', (e) => {
-            isTouching = true;
-            updateTouchPos(e);
-        }, {passive: false});
+        // 惑星描画
+        ctx.beginPath();
+        ctx.arc(planet.x, planet.y, planet.r, 0, Math.PI*2);
+        ctx.fillStyle = planet.color;
+        ctx.shadowBlur = planet.r / 2;
+        ctx.shadowColor = planet.color;
+        ctx.fill();
+        ctx.shadowBlur = 0;
 
-        canvas.addEventListener('touchmove', (e) => {
-            updateTouchPos(e);
-            // 指を動かしたら移動
-            planet.x = lastTouchX;
-            planet.y = lastTouchY;
-        }, {passive: false});
-
-        canvas.addEventListener('touchend', () => isTouching = false);
-
-        function updateTouchPos(e) {
-            const rect = canvas.getBoundingClientRect();
-            const touch = e.touches[0];
-            lastTouchX = touch.clientX - rect.left;
-            lastTouchY = touch.clientY - rect.top;
+        // 隕石生成
+        if(Math.random() < 0.025 + (score/3000)) {
+            const r = 8 + Math.random()*12;
+            let x, y;
+            const side = Math.floor(Math.random()*4);
+            if(side === 0) { x = Math.random()*canvas.width; y = -r; }
+            else if(side === 1) { x = canvas.width+r; y = Math.random()*canvas.height; }
+            else if(side === 2) { x = Math.random()*canvas.width; y = canvas.height+r; }
+            else { x = -r; y = Math.random()*canvas.height; }
+            
+            const angle = Math.atan2(planet.y - y, planet.x - x);
+            asteroids.push({x, y, r, vx: Math.cos(angle)*2.2, vy: Math.sin(angle)*2.2});
         }
 
-        function updateUI() {
-            document.getElementById("score-display").innerText = "SCORE: " + score;
-            document.getElementById("hp-display").innerText = `HP: ${Math.floor(hp)} / ${Math.floor(maxHp)}`;
-        }
-
-        function loop() {
-            if(!gameActive) return;
-            ctx.clearRect(0,0,canvas.width, canvas.height);
-
-            // 巨大化処理：指が触れていて、移動が少ない時に実行
-            if(isTouching) {
-                planet.r += 0.2; // 巨大化
-                maxHp = 100 + (planet.r - 25) * 5; // 最大HP増加
-                hp = Math.min(hp + 0.4, maxHp); // 回復
-                score = Math.floor((planet.r - 25) * 2);
-                updateUI();
-            }
-
-            // 惑星描画
+        // 隕石更新
+        asteroids = asteroids.filter(a => {
+            a.x += a.vx; a.y += a.vy;
             ctx.beginPath();
-            ctx.arc(planet.x, planet.y, planet.r, 0, Math.PI*2);
-            ctx.fillStyle = planet.color;
-            ctx.shadowBlur = planet.r / 2;
-            ctx.shadowColor = planet.color;
+            ctx.arc(a.x, a.y, a.r, 0, Math.PI*2);
+            ctx.fillStyle = "#ff5252";
             ctx.fill();
-            ctx.shadowBlur = 0;
 
-            // 隕石生成
-            if(Math.random() < 0.03 + (score/2000)) {
-                const r = 8 + Math.random()*12;
-                let x, y;
-                const side = Math.floor(Math.random()*4);
-                if(side === 0) { x = Math.random()*canvas.width; y = -r; }
-                else if(side === 1) { x = canvas.width+r; y = Math.random()*canvas.height; }
-                else if(side === 2) { x = Math.random()*canvas.width; y = canvas.height+r; }
-                else { x = -r; y = Math.random()*canvas.height; }
-                
-                const angle = Math.atan2(planet.y - y, planet.x - x);
-                asteroids.push({x, y, r, vx: Math.cos(angle)*2.5, vy: Math.sin(angle)*2.5});
+            const dist = Math.hypot(planet.x - a.x, planet.y - a.y);
+            if(dist < planet.r + a.r) {
+                hp -= 30; // ダメージを少し重くして緊張感をアップ
+                updateUI();
+                if(hp <= 0) gameOver();
+                return false;
             }
+            return a.x > -50 && a.x < canvas.width+50 && a.y > -50 && a.y < canvas.height+50;
+        });
 
-            // 隕石更新
-            asteroids = asteroids.filter(a => {
-                a.x += a.vx; a.y += a.vy;
-                ctx.beginPath();
-                ctx.arc(a.x, a.y, a.r, 0, Math.PI*2);
-                ctx.fillStyle = "#ff5252";
-                ctx.fill();
-
-                const dist = Math.hypot(planet.x - a.x, planet.y - a.y);
-                if(dist < planet.r + a.r) {
-                    hp -= 25; // ダメージ
-                    updateUI();
-                    if(hp <= 0) gameOver();
-                    return false;
-                }
-                return a.x > -50 && a.x < canvas.width+50 && a.y > -50 && a.y < canvas.height+50;
-            });
-
-            animationId = requestAnimationFrame(loop);
-        }
-
-        function gameOver() {
-            gameActive = false;
-            cancelAnimationFrame(animationId);
-            document.getElementById("result-msg").innerText = "惑星消滅！💥\nSCORE: " + score;
-            document.getElementById("ad-middle-container").style.display = "flex";
-            document.getElementById("menuScreen").style.display = "flex";
-        }
-
-        window.addEventListener('resize', resize);
-        window.onload = () => { resize(); document.getElementById("menuScreen").style.display = "flex"; };
-    </script>
+        animationId = requestAnimationFrame(loop);
+    }
+    // ... updateUI, gameOverなどは前回と同じ
+</script>
 </body>
 </html>
