@@ -6,7 +6,13 @@
     <title>Grow Planet - 第40弾</title>
     <style>
         * { box-sizing: border-box; }
-        body { margin: 0; overflow: hidden; background: #0d1117; font-family: sans-serif; touch-action: none; position: fixed; width: 100%; height: 100%; }
+        /* 画面固定のための強力な設定 */
+        html, body { 
+            margin: 0; padding: 0; overflow: hidden; 
+            width: 100%; height: 100%; position: fixed;
+            touch-action: none; -webkit-overflow-scrolling: none;
+        }
+        body { background: #0d1117; font-family: sans-serif; }
         
         #ad-top, #ad-bottom { position: fixed; left: 0; width: 100%; height: 100px; background: #333; z-index: 100; display: flex; align-items: center; justify-content: center; }
         #ad-top { top: 0; } #ad-bottom { bottom: 0; }
@@ -20,11 +26,11 @@
 
         #menuScreen { 
             position: absolute; top: 0; left: 0; width: 100%; height: 100%; 
-            background: rgba(0,0,0,0.9); display: flex; flex-direction: column; 
+            background: rgba(0,0,0,0.92); display: flex; flex-direction: column; 
             align-items: center; justify-content: flex-start; z-index: 50; 
             padding: 20px 0; overflow-y: auto; color: white;
         }
-        #result-msg { color: #4fc3f7; margin: 15px 0; font-size: 26px; text-align: center; }
+        #result-msg { color: #4fc3f7; margin: 15px 0; font-size: 26px; text-align: center; line-height: 1.4; }
         .guide-text { padding: 0 30px; text-align: center; font-size: 13px; margin-bottom: 15px; color: #b0bec5; }
 
         #ad-middle-container { width: 300px; height: 120px; background: #000; margin: 10px 0; display: none; justify-content: center; align-items: center; }
@@ -35,9 +41,9 @@
         #more-games-btn { background: #ff4081; color: white; box-shadow: 0 4px #c2185b; }
     </style>
 </head>
-<body>
+<body oncontextmenu="return false;">
 
-    <div id="ad-top"><iframe src="ad.html"></iframe></div>
+    <div id="ad-top"><iframe id="frame-top" src="ad.html"></iframe></div>
 
     <div id="game-outer">
         <canvas id="game-canvas"></canvas>
@@ -50,8 +56,8 @@
             <h2 id="result-msg">Grow Planet</h2>
             <p class="guide-text">
                 <b>ドラッグ</b>で移動！隕石を避けろ！<br>
-                <b>長押し（同じ場所を押し続ける）</b>で巨大化！<br>
-                巨大化すると<b>スコアと最大HP</b>が増えるぞ！
+                <b>静止して長押し</b>で巨大化＆HP回復！<br>
+                ダメージを受けると<b>惑星も小さくなる</b>ぞ！
             </p>
             
             <div id="ad-middle-container">
@@ -65,110 +71,137 @@
         </div>
     </div>
 
-    <div id="ad-bottom"><iframe src="ad.html"></iframe></div>
+    <div id="ad-bottom"><iframe id="frame-bottom" src="ad.html"></iframe></div>
 
-<script>
-    const canvas = document.getElementById('game-canvas');
-    const ctx = canvas.getContext('2d');
-    let gameActive = false, score = 0, hp = 100, maxHp = 100;
-    let planet = { x: 0, y: 0, r: 25, color: '#4fc3f7' };
-    let asteroids = [], animationId;
-    let isTouching = false;
-    let isMoving = false; // 動いているかどうかのフラグを追加
-    let lastTouchX = 0, lastTouchY = 0;
+    <script>
+        const canvas = document.getElementById('game-canvas');
+        const ctx = canvas.getContext('2d');
+        let gameActive = false, score = 0, hp = 100, maxHp = 100;
+        let planet = { x: 0, y: 0, r: 25, color: '#4fc3f7' };
+        let asteroids = [], animationId;
+        let isTouching = false, isMoving = false;
+        let lastTouchX = 0, lastTouchY = 0;
 
-    function startNewGame() {
-        document.getElementById("menuScreen").style.display = "none";
-        document.getElementById("ad-middle-container").style.display = "none";
-        gameActive = true; score = 0; hp = 100; maxHp = 100;
-        planet = { x: canvas.width/2, y: canvas.height/2, r: 25, color: '#4fc3f7' };
-        asteroids = [];
-        updateUI();
-        loop();
-    }
+        function resize() {
+            canvas.width = canvas.offsetWidth;
+            canvas.height = canvas.offsetHeight;
+            if(!gameActive) { planet.x = canvas.width/2; planet.y = canvas.height/2; }
+        }
 
-    canvas.addEventListener('touchstart', (e) => {
-        isTouching = true;
-        isMoving = false; // 触れた瞬間はまだ動いていない
-        updateTouchPos(e);
-    }, {passive: false});
-
-    canvas.addEventListener('touchmove', (e) => {
-        isMoving = true; // 動かしたら移動中とみなす
-        updateTouchPos(e);
-        planet.x = lastTouchX;
-        planet.y = lastTouchY;
-    }, {passive: false});
-
-    canvas.addEventListener('touchend', () => {
-        isTouching = false;
-        isMoving = false;
-    });
-
-    function updateTouchPos(e) {
-        const rect = canvas.getBoundingClientRect();
-        const touch = e.touches[0];
-        lastTouchX = touch.clientX - rect.left;
-        lastTouchY = touch.clientY - rect.top;
-    }
-
-    function loop() {
-        if(!gameActive) return;
-        ctx.clearRect(0,0,canvas.width, canvas.height);
-
-        // ★ ここが調整ポイント：触れている 且つ 動いていない時だけ巨大化
-        if(isTouching && !isMoving) {
-            planet.r += 0.05; // 巨大化スピードをかなり落としました
-            maxHp = 100 + (planet.r - 25) * 4;
-            hp = Math.min(hp + 0.2, maxHp); // 回復もゆっくりに
-            score = Math.floor((planet.r - 25) * 5);
+        function startNewGame() {
+            document.getElementById("menuScreen").style.display = "none";
+            document.getElementById("ad-middle-container").style.display = "none";
+            gameActive = true; score = 0; hp = 100; maxHp = 100;
+            planet = { x: canvas.width/2, y: canvas.height/2, r: 25, color: '#4fc3f7' };
+            asteroids = [];
             updateUI();
+            loop();
         }
 
-        // 惑星描画
-        ctx.beginPath();
-        ctx.arc(planet.x, planet.y, planet.r, 0, Math.PI*2);
-        ctx.fillStyle = planet.color;
-        ctx.shadowBlur = planet.r / 2;
-        ctx.shadowColor = planet.color;
-        ctx.fill();
-        ctx.shadowBlur = 0;
+        // スクロール等の標準動作を完全に阻止
+        document.addEventListener('touchmove', function(e) { e.preventDefault(); }, { passive: false });
 
-        // 隕石生成
-        if(Math.random() < 0.025 + (score/3000)) {
-            const r = 8 + Math.random()*12;
-            let x, y;
-            const side = Math.floor(Math.random()*4);
-            if(side === 0) { x = Math.random()*canvas.width; y = -r; }
-            else if(side === 1) { x = canvas.width+r; y = Math.random()*canvas.height; }
-            else if(side === 2) { x = Math.random()*canvas.width; y = canvas.height+r; }
-            else { x = -r; y = Math.random()*canvas.height; }
-            
-            const angle = Math.atan2(planet.y - y, planet.x - x);
-            asteroids.push({x, y, r, vx: Math.cos(angle)*2.2, vy: Math.sin(angle)*2.2});
+        canvas.addEventListener('touchstart', (e) => {
+            isTouching = true; isMoving = false;
+            updateTouchPos(e);
+        }, {passive: false});
+
+        canvas.addEventListener('touchmove', (e) => {
+            isMoving = true;
+            updateTouchPos(e);
+            planet.x = lastTouchX; planet.y = lastTouchY;
+        }, {passive: false});
+
+        canvas.addEventListener('touchend', () => { isTouching = false; isMoving = false; });
+
+        function updateTouchPos(e) {
+            const rect = canvas.getBoundingClientRect();
+            const touch = e.touches[0];
+            lastTouchX = touch.clientX - rect.left;
+            lastTouchY = touch.clientY - rect.top;
         }
 
-        // 隕石更新
-        asteroids = asteroids.filter(a => {
-            a.x += a.vx; a.y += a.vy;
-            ctx.beginPath();
-            ctx.arc(a.x, a.y, a.r, 0, Math.PI*2);
-            ctx.fillStyle = "#ff5252";
-            ctx.fill();
+        function updateUI() {
+            document.getElementById("score-display").innerText = "SCORE: " + score;
+            document.getElementById("hp-display").innerText = `HP: ${Math.floor(hp)} / ${Math.floor(maxHp)}`;
+        }
 
-            const dist = Math.hypot(planet.x - a.x, planet.y - a.y);
-            if(dist < planet.r + a.r) {
-                hp -= 30; // ダメージを少し重くして緊張感をアップ
+        function loop() {
+            if(!gameActive) return;
+            ctx.clearRect(0,0,canvas.width, canvas.height);
+
+            // 長押しで巨大化＆回復
+            if(isTouching && !isMoving) {
+                planet.r += 0.08;
+                maxHp = 100 + (planet.r - 25) * 4;
+                hp = Math.min(hp + 0.3, maxHp);
+                score = Math.max(score, Math.floor((planet.r - 25) * 5));
                 updateUI();
-                if(hp <= 0) gameOver();
-                return false;
             }
-            return a.x > -50 && a.x < canvas.width+50 && a.y > -50 && a.y < canvas.height+50;
-        });
 
-        animationId = requestAnimationFrame(loop);
-    }
-    // ... updateUI, gameOverなどは前回と同じ
-</script>
+            // 惑星描画
+            ctx.beginPath();
+            ctx.arc(planet.x, planet.y, planet.r, 0, Math.PI*2);
+            ctx.fillStyle = planet.color;
+            ctx.shadowBlur = planet.r / 2;
+            ctx.shadowColor = planet.color;
+            ctx.fill();
+            ctx.shadowBlur = 0;
+
+            // 隕石生成
+            if(Math.random() < 0.025 + (score/5000)) {
+                const r = 8 + Math.random()*12;
+                let x, y;
+                const side = Math.floor(Math.random()*4);
+                if(side === 0) { x = Math.random()*canvas.width; y = -r; }
+                else if(side === 1) { x = canvas.width+r; y = Math.random()*canvas.height; }
+                else if(side === 2) { x = Math.random()*canvas.width; y = canvas.height+r; }
+                else { x = -r; y = Math.random()*canvas.height; }
+                
+                const angle = Math.atan2(planet.y - y, planet.x - x);
+                asteroids.push({x, y, r, vx: Math.cos(angle)*2.2, vy: Math.sin(angle)*2.2});
+            }
+
+            // 隕石更新
+            asteroids = asteroids.filter(a => {
+                a.x += a.vx; a.y += a.vy;
+                ctx.beginPath();
+                ctx.arc(a.x, a.y, a.r, 0, Math.PI*2);
+                ctx.fillStyle = "#ff5252";
+                ctx.fill();
+
+                const dist = Math.hypot(planet.x - a.x, planet.y - a.y);
+                if(dist < planet.r + a.r) {
+                    hp -= 25; 
+                    planet.r = Math.max(15, planet.r - 5); // ★ダメージで惑星が小さくなる！
+                    updateUI();
+                    if(hp <= 0) gameOver();
+                    return false;
+                }
+                return a.x > -50 && a.x < canvas.width+50 && a.y > -50 && a.y < canvas.height+50;
+            });
+
+            animationId = requestAnimationFrame(loop);
+        }
+
+        function gameOver() {
+            gameActive = false;
+            cancelAnimationFrame(animationId);
+            document.getElementById("result-msg").innerText = "惑星消滅！💥\nFINAL SCORE: " + score;
+            document.getElementById("ad-middle-container").style.display = "flex";
+            document.getElementById("menuScreen").style.display = "flex";
+            document.getElementById("menuScreen").scrollTop = 0;
+        }
+
+        function refreshAds() {
+            const t = document.getElementById('frame-top');
+            const b = document.getElementById('frame-bottom');
+            if(t) t.src = t.src; if(b) b.src = b.src;
+        }
+        setInterval(refreshAds, 30000);
+
+        window.addEventListener('resize', resize);
+        window.onload = () => { resize(); document.getElementById("menuScreen").style.display = "flex"; };
+    </script>
 </body>
 </html>
