@@ -3,22 +3,18 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Grow Planet - 第40弾</title>
+    <title>Grow Planet - v26.8</title>
     <style>
         * { box-sizing: border-box; }
-        /* 画面固定のための強力な設定 */
-        html, body { 
-            margin: 0; padding: 0; overflow: hidden; 
-            width: 100%; height: 100%; position: fixed;
-            touch-action: none; -webkit-overflow-scrolling: none;
-        }
-        body { background: #0d1117; font-family: sans-serif; }
+        html, body { margin: 0; padding: 0; overflow: hidden; width: 100%; height: 100%; position: fixed; touch-action: none; }
+        body { background: #0d1117; font-family: sans-serif; display: flex; flex-direction: column; }
         
-        #ad-top, #ad-bottom { position: fixed; left: 0; width: 100%; height: 100px; background: #333; z-index: 100; display: flex; align-items: center; justify-content: center; }
-        #ad-top { top: 0; } #ad-bottom { bottom: 0; }
-        iframe { border: none; width: 100%; height: 100px; }
+        /* 上下広告：150px */
+        #ad-top, #ad-bottom { width: 100%; height: 150px; background: #333; display: flex; align-items: center; justify-content: center; flex-shrink: 0; z-index: 100; position: relative; }
+        iframe { border: none; width: 100%; height: 100%; background: #333; }
 
-        #game-outer { position: absolute; top: 100px; bottom: 100px; left: 0; right: 0; background: #0d1117; overflow: hidden; }
+        /* ゲームエリア */
+        #game-outer { flex-grow: 1; position: relative; width: 100%; background: #0d1117; overflow: hidden; }
         #game-canvas { width: 100%; height: 100%; display: block; }
 
         #ui-layer { position: absolute; top: 0; left: 0; width: 100%; padding: 10px; display: flex; justify-content: space-around; z-index: 10; pointer-events: none; }
@@ -27,23 +23,34 @@
         #menuScreen { 
             position: absolute; top: 0; left: 0; width: 100%; height: 100%; 
             background: rgba(0,0,0,0.92); display: flex; flex-direction: column; 
-            align-items: center; justify-content: flex-start; z-index: 50; 
-            padding: 20px 0; overflow-y: auto; color: white;
+            align-items: center; justify-content: center; z-index: 50; color: white;
+            padding: 20px 0;
         }
-        #result-msg { color: #4fc3f7; margin: 15px 0; font-size: 26px; text-align: center; line-height: 1.4; }
+        #result-msg { color: #4fc3f7; margin: 10px 0; font-size: 24px; text-align: center; line-height: 1.4; }
         .guide-text { padding: 0 30px; text-align: center; font-size: 13px; margin-bottom: 15px; color: #b0bec5; }
 
-        #ad-middle-container { width: 300px; height: 120px; background: #000; margin: 10px 0; display: none; justify-content: center; align-items: center; }
+        /* 中央広告 */
+        #ad-middle-container { 
+            width: 320px; height: 100px; background: rgba(255,255,255,0.05); 
+            margin: 15px 0; display: none; justify-content: center; align-items: center; 
+            overflow: hidden; flex-shrink: 0; border: 1px solid #444; transition: opacity 0.3s;
+        }
 
-        .menu-btn-group { display: flex; flex-direction: column; align-items: center; width: 100%; gap: 12px; padding-bottom: 40px; }
-        .menu-btn { width: 260px; padding: 15px; font-size: 18px; border: none; border-radius: 30px; font-weight: bold; cursor: pointer; text-decoration: none; text-align: center; }
+        .menu-btn-group { display: flex; flex-direction: column; align-items: center; width: 100%; gap: 12px; }
+        .menu-btn { width: 260px; padding: 15px; font-size: 18px; border: none; border-radius: 50px; font-weight: bold; cursor: pointer; text-decoration: none; text-align: center; transition: 0.2s; }
         #retry-btn { background: #4fc3f7; color: #000; box-shadow: 0 4px #0288d1; }
-        #more-games-btn { background: #ff4081; color: white; box-shadow: 0 4px #c2185b; }
+        #retry-btn:disabled { background: #666; color: #aaa; box-shadow: none; }
+        .link-btn { background: #ff4081; color: white; box-shadow: 0 4px #c2185b; }
+
+        /* 大広告 */
+        #bigAdScreen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #000; z-index: 3000; display: none; justify-content: center; align-items: center; }
+        .ad-frame-wrapper { width: 95%; height: 85%; position: relative; }
+        .ad-close-btn { position: absolute; top: -15px; right: -15px; color: white; font-size: 22px; font-weight: bold; cursor: pointer; background: rgba(0,0,0,0.8); width: 44px; height: 44px; border-radius: 50%; display: none; align-items: center; justify-content: center; z-index: 3100; border: 2px solid white; }
     </style>
 </head>
 <body oncontextmenu="return false;">
 
-    <div id="ad-top"><iframe id="frame-top" src="ad.html"></iframe></div>
+    <div id="ad-top"><iframe id="frame-top" src="ad.html?pos=top"></iframe></div>
 
     <div id="game-outer">
         <canvas id="game-canvas"></canvas>
@@ -55,70 +62,58 @@
         <div id="menuScreen">
             <h2 id="result-msg">Grow Planet</h2>
             <p class="guide-text">
-                <b>ドラッグ</b>で移動！隕石を避けろ！<br>
-                <b>静止して長押し</b>で巨大化＆HP回復！<br>
-                ダメージを受けると<b>惑星も小さくなる</b>ぞ！
+                ドラッグで移動！隕石を避けろ！<br>
+                静止して長押しで巨大化＆HP回復！
             </p>
             
             <div id="ad-middle-container">
-                <script src="https://adm.shinobi.jp/s/1e6de436ea850948e238e975a93767eb"></script>
+                <div id="im-8b492cea6667490da71c488bdcc7cfc8">
+                    <script async src="https://imp-adedge.i-mobile.co.jp/script/v1/spot.js?20220104"></script>
+                    <script>(window.adsbyimobile=window.adsbyimobile||[]).push({pid:84561,mid:590804,asid:1924211,type:"banner",display:"inline",elementid:"im-8b492cea6667490da71c488bdcc7cfc8"})</script>
+                </div>
             </div>
 
             <div class="menu-btn-group">
                 <button id="retry-btn" class="menu-btn" onclick="startNewGame()">★ スタート ★</button>
-                <a href="https://saaaachi.github.io/10-Stack/" id="more-games-btn" class="menu-btn">★ 他のゲームはこちら ★</a>
+                <a href="https://saaaachi.github.io/" class="menu-btn link-btn">他のゲームへ</a>
+            </div>
+        </div>
+
+        <div id="bigAdScreen">
+            <div class="ad-frame-wrapper">
+                <div id="ad-close-btn" class="ad-close-btn" onclick="closeBigAd()"></div>
+                <iframe id="ad-large-frame" src="" style="width:100%; height:100%; border:none;"></iframe>
             </div>
         </div>
     </div>
 
-    <div id="ad-bottom"><iframe id="frame-bottom" src="ad.html"></iframe></div>
+    <div id="ad-bottom"><iframe id="frame-bottom" src="ad.html?pos=bottom"></iframe></div>
 
     <script>
-        const canvas = document.getElementById('game-canvas');
-        const ctx = canvas.getContext('2d');
-        let gameActive = false, score = 0, hp = 100, maxHp = 100;
-        let planet = { x: 0, y: 0, r: 25, color: '#4fc3f7' };
-        let asteroids = [], animationId;
-        let isTouching = false, isMoving = false;
-        let lastTouchX = 0, lastTouchY = 0;
+        const canvas = document.getElementById('game-canvas'), ctx = canvas.getContext('2d'), menuScreen = document.getElementById("menuScreen"), adMid = document.getElementById("ad-middle-container"), retryBtn = document.getElementById("retry-btn");
+        let gameActive = false, score = 0, hp = 100, maxHp = 100, playCount = 0;
+        let planet = { x: 0, y: 0, r: 25, color: '#4fc3f7' }, asteroids = [], animationId;
+        let isTouching = false, isMoving = false, lastTouchX = 0, lastTouchY = 0;
 
-        function resize() {
-            canvas.width = canvas.offsetWidth;
-            canvas.height = canvas.offsetHeight;
-            if(!gameActive) { planet.x = canvas.width/2; planet.y = canvas.height/2; }
-        }
+        function resize() { canvas.width = canvas.offsetWidth; canvas.height = canvas.offsetHeight; planet.x = canvas.width/2; planet.y = canvas.height/2; }
+        window.addEventListener('resize', resize);
+        window.onload = () => { resize(); menuScreen.style.display = "flex"; };
 
         function startNewGame() {
-            document.getElementById("menuScreen").style.display = "none";
-            document.getElementById("ad-middle-container").style.display = "none";
+            menuScreen.style.display = "none"; adMid.style.display = "none";
             gameActive = true; score = 0; hp = 100; maxHp = 100;
             planet = { x: canvas.width/2, y: canvas.height/2, r: 25, color: '#4fc3f7' };
-            asteroids = [];
-            updateUI();
-            loop();
+            asteroids = []; updateUI(); loop();
         }
 
-        // スクロール等の標準動作を完全に阻止
-        document.addEventListener('touchmove', function(e) { e.preventDefault(); }, { passive: false });
-
-        canvas.addEventListener('touchstart', (e) => {
-            isTouching = true; isMoving = false;
-            updateTouchPos(e);
-        }, {passive: false});
-
-        canvas.addEventListener('touchmove', (e) => {
-            isMoving = true;
-            updateTouchPos(e);
-            planet.x = lastTouchX; planet.y = lastTouchY;
-        }, {passive: false});
-
+        canvas.addEventListener('touchstart', (e) => { isTouching = true; isMoving = false; updateTouchPos(e); }, {passive: false});
+        canvas.addEventListener('touchmove', (e) => { isMoving = true; updateTouchPos(e); planet.x = lastTouchX; planet.y = lastTouchY; e.preventDefault(); }, {passive: false});
         canvas.addEventListener('touchend', () => { isTouching = false; isMoving = false; });
 
         function updateTouchPos(e) {
             const rect = canvas.getBoundingClientRect();
-            const touch = e.touches[0];
-            lastTouchX = touch.clientX - rect.left;
-            lastTouchY = touch.clientY - rect.top;
+            lastTouchX = e.touches[0].clientX - rect.left;
+            lastTouchY = e.touches[0].clientY - rect.top;
         }
 
         function updateUI() {
@@ -130,78 +125,63 @@
             if(!gameActive) return;
             ctx.clearRect(0,0,canvas.width, canvas.height);
 
-            // 長押しで巨大化＆回復
             if(isTouching && !isMoving) {
-                planet.r += 0.08;
-                maxHp = 100 + (planet.r - 25) * 4;
+                planet.r += 0.08; maxHp = 100 + (planet.r - 25) * 4;
                 hp = Math.min(hp + 0.3, maxHp);
                 score = Math.max(score, Math.floor((planet.r - 25) * 5));
                 updateUI();
             }
 
-            // 惑星描画
-            ctx.beginPath();
-            ctx.arc(planet.x, planet.y, planet.r, 0, Math.PI*2);
-            ctx.fillStyle = planet.color;
-            ctx.shadowBlur = planet.r / 2;
-            ctx.shadowColor = planet.color;
-            ctx.fill();
-            ctx.shadowBlur = 0;
+            ctx.beginPath(); ctx.arc(planet.x, planet.y, planet.r, 0, Math.PI*2);
+            ctx.fillStyle = planet.color; ctx.shadowBlur = planet.r / 2; ctx.shadowColor = planet.color; ctx.fill(); ctx.shadowBlur = 0;
 
-            // 隕石生成
             if(Math.random() < 0.025 + (score/5000)) {
-                const r = 8 + Math.random()*12;
-                let x, y;
-                const side = Math.floor(Math.random()*4);
+                const r = 8 + Math.random()*12; let x, y; const side = Math.floor(Math.random()*4);
                 if(side === 0) { x = Math.random()*canvas.width; y = -r; }
                 else if(side === 1) { x = canvas.width+r; y = Math.random()*canvas.height; }
                 else if(side === 2) { x = Math.random()*canvas.width; y = canvas.height+r; }
                 else { x = -r; y = Math.random()*canvas.height; }
-                
                 const angle = Math.atan2(planet.y - y, planet.x - x);
                 asteroids.push({x, y, r, vx: Math.cos(angle)*2.2, vy: Math.sin(angle)*2.2});
             }
 
-            // 隕石更新
             asteroids = asteroids.filter(a => {
                 a.x += a.vx; a.y += a.vy;
-                ctx.beginPath();
-                ctx.arc(a.x, a.y, a.r, 0, Math.PI*2);
-                ctx.fillStyle = "#ff5252";
-                ctx.fill();
-
+                ctx.beginPath(); ctx.arc(a.x, a.y, a.r, 0, Math.PI*2); ctx.fillStyle = "#ff5252"; ctx.fill();
                 const dist = Math.hypot(planet.x - a.x, planet.y - a.y);
                 if(dist < planet.r + a.r) {
-                    hp -= 25; 
-                    planet.r = Math.max(15, planet.r - 5); // ★ダメージで惑星が小さくなる！
-                    updateUI();
+                    hp -= 25; planet.r = Math.max(15, planet.r - 5); updateUI();
                     if(hp <= 0) gameOver();
                     return false;
                 }
                 return a.x > -50 && a.x < canvas.width+50 && a.y > -50 && a.y < canvas.height+50;
             });
-
-            animationId = requestAnimationFrame(loop);
+            if(gameActive) animationId = requestAnimationFrame(loop);
         }
 
         function gameOver() {
-            gameActive = false;
+            gameActive = false; playCount++;
             cancelAnimationFrame(animationId);
+            retryBtn.innerText = "お待ちください..."; retryBtn.disabled = true;
+            adMid.style.display = "flex"; adMid.style.opacity = "0.4";
             document.getElementById("result-msg").innerText = "惑星消滅！💥\nFINAL SCORE: " + score;
-            document.getElementById("ad-middle-container").style.display = "flex";
-            document.getElementById("menuScreen").style.display = "flex";
-            document.getElementById("menuScreen").scrollTop = 0;
+            menuScreen.style.display = "flex";
+
+            setTimeout(() => { adMid.style.opacity = "1"; retryBtn.disabled = false; retryBtn.innerText = "リトライ！"; }, 1500);
+            if (playCount % 2 === 0) { setTimeout(showBigAd, 500); }
         }
 
-        function refreshAds() {
-            const t = document.getElementById('frame-top');
-            const b = document.getElementById('frame-bottom');
-            if(t) t.src = t.src; if(b) b.src = b.src;
+        function showBigAd() {
+            const screen = document.getElementById("bigAdScreen"), closeBtn = document.getElementById("ad-close-btn");
+            document.getElementById("ad-large-frame").src = "./ad.large.html?t=" + Date.now();
+            screen.style.display = "flex"; let countdown = 5; closeBtn.style.display = "flex"; closeBtn.innerText = countdown; closeBtn.style.pointerEvents = "none";
+            const timerInt = setInterval(() => { countdown--; closeBtn.innerText = countdown; if (countdown <= 0) { clearInterval(timerInt); closeBtn.innerText = "×"; closeBtn.style.pointerEvents = "auto"; } }, 1000);
         }
-        setInterval(refreshAds, 30000);
 
-        window.addEventListener('resize', resize);
-        window.onload = () => { resize(); document.getElementById("menuScreen").style.display = "flex"; };
+        function closeBigAd() { document.getElementById("bigAdScreen").style.display = "none"; document.getElementById("ad-large-frame").src = ""; }
+
+        setInterval(() => { const f = document.getElementById('frame-top'); if(f) f.src = "ad.html?pos=top&t=" + Date.now(); }, 30000);
+        setTimeout(() => { setInterval(() => { const f = document.getElementById('frame-bottom'); if(f) f.src = "ad.html?pos=bottom&t=" + Date.now(); }, 30000); }, 15000);
     </script>
 </body>
 </html>
