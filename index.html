@@ -9,15 +9,15 @@
         html, body { margin: 0; padding: 0; overflow: hidden; width: 100%; height: 100%; position: fixed; touch-action: none; }
         body { background: #0d1117; font-family: sans-serif; display: flex; flex-direction: column; }
         
-        /* 上下広告：150px */
-        #ad-top, #ad-bottom { width: 100%; height: 150px; background: #333; display: flex; align-items: center; justify-content: center; flex-shrink: 0; z-index: 100; position: relative; }
+        /* 上下広告：100pxに縮小してゲーム画面を広く確保 */
+        #ad-top, #ad-bottom { width: 100%; height: 100px; background: #333; display: flex; align-items: center; justify-content: center; flex-shrink: 0; z-index: 100; position: relative; }
         iframe { border: none; width: 100%; height: 100%; background: #333; }
 
-        /* ゲームエリア */
+        /* ゲームエリア：広告が小さくなった分、ここが広がります */
         #game-outer { flex-grow: 1; position: relative; width: 100%; background: #0d1117; overflow: hidden; }
         #game-canvas { width: 100%; height: 100%; display: block; }
 
-        #ui-layer { position: absolute; top: 0; left: 0; width: 100%; padding: 10px; display: flex; justify-content: space-around; z-index: 10; pointer-events: none; }
+        #ui-layer { position: absolute; top: 10px; left: 0; width: 100%; padding: 0 10px; display: flex; justify-content: space-around; z-index: 10; pointer-events: none; }
         .ui-box { padding: 5px 15px; border-radius: 15px; font-weight: bold; color: white; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); font-size: 14px; backdrop-filter: blur(5px); }
 
         #menuScreen { 
@@ -75,7 +75,7 @@
 
             <div class="menu-btn-group">
                 <button id="retry-btn" class="menu-btn" onclick="startNewGame()">★ スタート ★</button>
-                <a href="https://saaaachi.github.io/" class="menu-btn link-btn">他のゲームへ</a>
+                <a href="grow.html" class="menu-btn link-btn">遊び方・コツ</a>
             </div>
         </div>
 
